@@ -1,0 +1,6 @@
+pdfplumber==0.11.4
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+pydantic-settings==2.6.1
+pytest==8.3.4
+pytest-asyncio==0.24.0
