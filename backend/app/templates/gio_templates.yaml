@@ -1,0 +1,270 @@
+# Gio message templates — all Hebrew
+# Format strings use Python .format() syntax
+
+deadline_nudge:
+  variants:
+    low: "{opening}! יש לך {assignment_title} בקורס {course_name} {due_day_phrase}. {workload_line}"
+    medium: "יש לך {assignment_title} בקורס {course_name} {due_day_phrase}. {workload_line} {behavioral_callback}"
+    high: "הגשה מתקרבת! {assignment_title} בקורס {course_name} — {due_day_phrase}. {workload_line}"
+    urgent: "{name} שימ/י לב — {assignment_title} בקורס {course_name} מחר! {workload_line}"
+    day_of: "{name} היום יום ההגשה של {assignment_title} בקורס {course_name}. בהצלחה!"
+  buttons:
+    low:
+      - label: "בסדר, ידעתי"
+        value: "ack"
+      - label: "צריך/ה עזרה עם זמן"
+        value: "needs_time"
+      - label: "לא עכשיו"
+        value: "snooze_tomorrow"
+    medium:
+      - label: "סיימתי!"
+        value: "completed"
+      - label: "עוד לא התחלתי"
+        value: "needs_time"
+      - label: "תזכיר/י מחר"
+        value: "snooze_tomorrow"
+    high:
+      - label: "סיימתי!"
+        value: "completed"
+      - label: "צריך/ה לקבוע זמן"
+        value: "needs_time"
+      - label: "יומיים רגיעה"
+        value: "snooze_2d"
+    urgent:
+      - label: "סיימתי!"
+        value: "completed"
+      - label: "עוד עובד/ת"
+        value: "ack"
+    day_of:
+      - label: "הגשתי!"
+        value: "completed"
+
+exam_reminder:
+  variants:
+    low: "{opening}! הבחינה בקורס {course_name} {due_day_phrase}. רוצה לקבוע זמן לחזרה?"
+    medium: "הבחינה בקורס {course_name} {due_day_phrase}. {workload_line}"
+    high: "הבחינה ב{course_name} ממש קרובה — {due_day_phrase}!"
+    urgent: "{name} מחר הבחינה ב{course_name}! בהצלחה!"
+    day_of: "{name} היום הבחינה ב{course_name}. בהצלחה!"
+  buttons:
+    low:
+      - label: "קבע/י זמן חזרה"
+        value: "needs_time"
+      - label: "בסדר"
+        value: "ack"
+    medium:
+      - label: "קבע/י זמן"
+        value: "needs_time"
+      - label: "תזכיר/י בשבוע"
+        value: "snooze_1w"
+    high:
+      - label: "קבע/י זמן עכשיו"
+        value: "needs_time"
+      - label: "ידעתי"
+        value: "ack"
+    urgent:
+      - label: "מוכן/ה!"
+        value: "ready"
+      - label: "צריך/ה לחזור עוד"
+        value: "needs_time"
+    day_of: []
+
+post_parse_single:
+  text: "עיבדתי את הקובץ {filename} ומצאתי מטלה אחת. תוכל/י לראות אותה בלוח הזמנים."
+  buttons:
+    default:
+      - label: "לוח זמנים"
+        value: "ack"
+  navigate_hint: "timeline"
+
+post_parse_multiple:
+  text: "עיבדתי את {filename} ומצאתי {count} פריטים (מטלות, בחינות). הכל נוסף ללוח הזמנים שלך."
+  buttons:
+    default:
+      - label: "צפה בלוח זמנים"
+        value: "ack"
+      - label: "הפרטים נכונים"
+        value: "confirm_parse"
+      - label: "יש טעות"
+        value: "reject_parse"
+  navigate_hint: "timeline"
+
+unreadable_pdf:
+  text: "קיבלתי את הקובץ {filename} אבל לא הצלחתי לקרוא את הטקסט. ייתכן שמדובר בסריקה. תוכל/י להזין את הפרטים ידנית?"
+  buttons:
+    default:
+      - label: "אזין ידנית"
+        value: "reject_parse"
+      - label: "לא צריך/ה"
+        value: "dismiss"
+
+parse_confirmation:
+  text: "מצאתי את הפרטים הבאים — האם הם נכונים?\n{details}"
+  buttons:
+    default:
+      - label: "כן, נכון"
+        value: "confirm_parse"
+      - label: "יש טעות"
+        value: "reject_parse"
+
+exam_moed_selection:
+  text: "לבחינה ב{course_name} יש כמה מועדים. באיזה מועד אתה/את רשום/ה?"
+  buttons:
+    default:
+      - label: "מועד א"
+        value: "moed_a"
+      - label: "מועד ב"
+        value: "moed_b"
+      - label: "מועד ג"
+        value: "moed_c"
+
+effort_collection_assignment:
+  text: "כמה שעות עבדת על {assignment_title}? (עוזר לסטודנטים אחרים להתכונן)"
+  buttons:
+    default:
+      - label: "עד שעה"
+        value: "effort_bucket_1"
+      - label: "1-2 שעות"
+        value: "effort_bucket_2"
+      - label: "2-4 שעות"
+        value: "effort_bucket_3"
+      - label: "4-8 שעות"
+        value: "effort_bucket_4"
+      - label: "8+ שעות"
+        value: "effort_bucket_5"
+
+effort_collection_exam:
+  text: "כמה שעות חזרת לבחינה ב{course_name}?"
+  buttons:
+    default:
+      - label: "עד 5 שעות"
+        value: "effort_bucket_1"
+      - label: "5-10 שעות"
+        value: "effort_bucket_2"
+      - label: "10-20 שעות"
+        value: "effort_bucket_3"
+      - label: "20-40 שעות"
+        value: "effort_bucket_4"
+      - label: "40+ שעות"
+        value: "effort_bucket_5"
+
+grade_notification_above_avg:
+  text: "קיבלת {grade} מתוך {max_grade} ב{assignment_title} בקורס {course_name}. מעל הממוצע!"
+  buttons:
+    default:
+      - label: "מעולה!"
+        value: "grade_ack"
+
+grade_notification_below_threshold:
+  text: "קיבלת {grade} מתוך {max_grade} ב{assignment_title} בקורס {course_name}. רוצה לשפר בפעם הבאה?"
+  buttons:
+    default:
+      - label: "כן, ארצה לשפר"
+        value: "grade_improve"
+      - label: "בסדר, תודה"
+        value: "grade_ack"
+  navigate_hint: "grades"
+
+study_block_reminder:
+  text: "יש לך זמן לימוד מוגדר עכשיו — {course_name}. בהצלחה!"
+  buttons:
+    default:
+      - label: "מתחיל/ה עכשיו"
+        value: "ack"
+      - label: "לא יכול/ה עכשיו"
+        value: "reschedule"
+
+manual_update_confirm:
+  text: "אז {description} — נכון?"
+  buttons:
+    default:
+      - label: "כן, נכון"
+        value: "confirm_update"
+      - label: "לא, אסביר"
+        value: "reject_update"
+
+lecture_reminder_attend:
+  text: "יש לך הרצאה ב{course_name} בעוד {minutes} דקות."
+  buttons:
+    default:
+      - label: "אני שם/שמה"
+        value: "lecture_attend"
+      - label: "לא אגיע"
+        value: "lecture_no_attend"
+
+lecture_reminder_recording:
+  text: "ההרצאה ב{course_name} הסתיימה. רוצה שאקבע זמן לצפות בהקלטה?"
+  buttons:
+    default:
+      - label: "כן, קבע/י"
+        value: "schedule_recording"
+      - label: "לא תודה"
+        value: "dismiss"
+
+snooze_duration_prompt:
+  text: "כמה זמן להפסיק לשלוח תזכורות על {title}?"
+  buttons:
+    default:
+      - label: "מחר"
+        value: "snooze_tomorrow"
+      - label: "יומיים"
+        value: "snooze_2d"
+      - label: "שבוע"
+        value: "snooze_1w"
+      - label: "אף פעם"
+        value: "snooze_never"
+
+# Onboarding templates
+onboarding_welcome:
+  text: "שלום! אני Gio, העוזר הלימודי שלך. כדי להתחיל, מה שמך?"
+  buttons:
+    default: []
+
+onboarding_virtual_email:
+  text: "כתובת המייל הווירטואלית שלך היא:\n{virtual_email}\n\nשלח/י את המיילים מהאוניברסיטה לכתובת הזו ואני אעבד אותם אוטומטית. רוצה שאעביר לך עותק לכתובת המייל הרגילה שלך?"
+  buttons:
+    default:
+      - label: "כן, העבר לי עותקים"
+        value: "forward_emails_yes"
+      - label: "לא צריך/ה"
+        value: "forward_emails_no"
+
+onboarding_lecture_mode:
+  text: "איך אתה/את רגיל/ה להשתמש בהרצאות?"
+  buttons:
+    default:
+      - label: "הולך/ת להרצאות"
+        value: "lecture_mode_attend"
+      - label: "צופה בהקלטות"
+        value: "lecture_mode_recording"
+      - label: "משתנה לפי קורס"
+        value: "lecture_mode_per_course"
+
+onboarding_work_schedule:
+  text: "האם אתה/את עובד/ת לצד הלימודים?"
+  buttons:
+    default:
+      - label: "כן"
+        value: "works_yes"
+      - label: "לא"
+        value: "works_no"
+
+onboarding_reminders:
+  text: "כמה ימים לפני ההגשה תרצה/י שאזכיר לך?"
+  buttons:
+    default:
+      - label: "שבוע מראש"
+        value: "reminder_7d"
+      - label: "3 ימים"
+        value: "reminder_3d"
+      - label: "יום לפני"
+        value: "reminder_1d"
+
+onboarding_done:
+  text: "מעולה! הכל מוגדר. תוכל/י להתחיל לשלוח מיילים מהאוניברסיטה לכתובת הווירטואלית שלך. רוצה להעלות קובץ PDF עכשיו?"
+  buttons:
+    default:
+      - label: "העלה/י קובץ"
+        value: "upload_pdf"
+      - label: "אחר כך"
+        value: "onboarding_complete"

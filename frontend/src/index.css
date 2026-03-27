@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hebrew/RTL baseline */
+html {
+  direction: rtl;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: "Rubik", system-ui, sans-serif;
+  background-color: #f0f4ff; /* navy-50 */
+  color: #0a1628; /* navy-900 */
+  overscroll-behavior: none;
+}
+
+/* Safe area for notched phones */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Dynamic viewport height for mobile browsers */
+.h-dvh {
+  height: 100dvh;
+}
+
+/* Smooth scrolling in chat thread */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #b8caf5 transparent;
+}
+
+/* Gio message markdown — keep it compact inside chat bubbles */
+.gio-prose ul { padding-inline-start: 1.25rem; list-style-type: disc; }
+.gio-prose ol { padding-inline-start: 1.25rem; list-style-type: decimal; }
+.gio-prose li { margin: 0.15rem 0; }
+.gio-prose p  { margin: 0.25rem 0; }
+.gio-prose p:first-child { margin-top: 0; }
+.gio-prose p:last-child  { margin-bottom: 0; }
+.gio-prose strong { font-weight: 600; }
+
+/* Remove default button focus ring; add custom */
+button:focus-visible {
+  @apply outline-none ring-2 ring-gio-500 ring-offset-1;
+}
+
+/* Prevent text size adjustment on iOS */
+input, textarea, select {
+  font-size: 16px; /* Prevents zoom on iOS */
+}
