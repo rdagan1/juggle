@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from jose import jwt, JWTError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -127,5 +127,7 @@ async def delete_course(
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    await db.delete(course)
+    await db.execute(
+        delete(Course).where(Course.id == uuid.UUID(course_id), Course.user_id == user.id)
+    )
     await db.commit()

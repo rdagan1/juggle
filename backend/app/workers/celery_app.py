@@ -51,13 +51,13 @@ def process_pdf_task(self, pdf_attachment_id: str, user_id: str, email_id: str, 
     import uuid
 
     async def _run():
-        from app.database import AsyncSessionLocal
+        from app.database import celery_session
         from app.services.pdf_pipeline import run_pipeline
         from app.services.personalization import create_gio_message
         from app.api.chat import push_gio_message
         from app.services.storage import download, delete
 
-        async with AsyncSessionLocal() as db:
+        async with celery_session() as db:
             try:
                 pdf_bytes_raw = download(storage_key)
                 result = await run_pipeline(
@@ -110,7 +110,7 @@ def process_uploaded_pdf_task(self, document_id: str, user_id: str, filename: st
     import uuid
 
     async def _run():
-        from app.database import AsyncSessionLocal
+        from app.database import celery_session
         from app.models.pdf_attachment import PdfAttachment, PdfParseStatus
         from app.models.uploaded_document import UploadedDocument, UploadedDocumentParseStatus
         from app.services.pdf_pipeline import run_pipeline
@@ -119,7 +119,7 @@ def process_uploaded_pdf_task(self, document_id: str, user_id: str, filename: st
         from app.services.storage import download, delete
         from sqlalchemy import select
 
-        async with AsyncSessionLocal() as db:
+        async with celery_session() as db:
             try:
                 pdf_bytes_raw = download(storage_key)
 
@@ -181,7 +181,7 @@ def process_uploaded_pdf_task(self, document_id: str, user_id: str, filename: st
             except Exception as exc:
                 # Mark the document as failed so it doesn't stay stuck in pending
                 try:
-                    async with AsyncSessionLocal() as err_db:
+                    async with celery_session() as err_db:
                         err_doc = await err_db.get(UploadedDocument, uuid.UUID(document_id))
                         if err_doc and err_doc.parse_status == UploadedDocumentParseStatus.pending:
                             err_doc.parse_status = UploadedDocumentParseStatus.failed
@@ -198,7 +198,7 @@ def forward_email_task(user_email: str, raw_mime: str, email_id: str):
     """Forward raw email to user's personal inbox (within 60s SLA)."""
     async def _run():
         from app.services.email_forwarder import forward_email
-        from app.database import AsyncSessionLocal
+        from app.database import celery_session
         from app.models.parsed_email import ParsedEmail
         from sqlalchemy import select
         import uuid
@@ -206,7 +206,7 @@ def forward_email_task(user_email: str, raw_mime: str, email_id: str):
 
         await forward_email(user_email, raw_mime)
 
-        async with AsyncSessionLocal() as db:
+        async with celery_session() as db:
             result = await db.execute(
                 select(ParsedEmail).where(ParsedEmail.id == uuid.UUID(email_id))
             )
@@ -222,12 +222,12 @@ def forward_email_task(user_email: str, raw_mime: str, email_id: str):
 def run_proactivity_check_all():
     """Run proactivity check for all active users."""
     async def _run():
-        from app.database import AsyncSessionLocal
+        from app.database import celery_session
         from app.models.user import User
         from app.services.scheduler import run_proactivity_check
         from sqlalchemy import select
 
-        async with AsyncSessionLocal() as db:
+        async with celery_session() as db:
             result = await db.execute(
                 select(User).where(User.is_active == True, User.onboarding_completed == True)
             )
@@ -246,10 +246,10 @@ def run_proactivity_check_all():
 def aggregate_effort():
     """Nightly effort aggregation."""
     async def _run():
-        from app.database import AsyncSessionLocal
+        from app.database import celery_session
         from app.services.effort_aggregator import compute_aggregates
 
-        async with AsyncSessionLocal() as db:
+        async with celery_session() as db:
             await compute_aggregates(db)
             await db.commit()
 
@@ -260,12 +260,12 @@ def aggregate_effort():
 def cleanup_expired_pdf_cache():
     """Remove expired PDF parse cache entries (90-day TTL)."""
     async def _run():
-        from app.database import AsyncSessionLocal
+        from app.database import celery_session
         from app.models.pdf_parse_cache import PdfParseCache
         from sqlalchemy import select, delete
         from datetime import datetime, timezone
 
-        async with AsyncSessionLocal() as db:
+        async with celery_session() as db:
             now = datetime.now(timezone.utc)
             await db.execute(
                 delete(PdfParseCache).where(

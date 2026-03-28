@@ -9,6 +9,7 @@ from typing import Final
 
 import fitz  # PyMuPDF
 from anthropic import AsyncAnthropic
+from rapidfuzz import fuzz
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -251,26 +252,110 @@ def _needs_review(item: dict, user_courses: list[Course]) -> bool:
     return False
 
 
+_COURSE_FUZZY_THRESHOLD: Final[int] = 85
+_DEADLINE_FUZZY_THRESHOLD: Final[int] = 80
+_GRADE_FUZZY_THRESHOLD: Final[int] = 80
+_DEADLINE_WINDOW_DAYS: Final[int] = 3
+
+
 async def get_or_create_course(
     course_code: str,
     user_id: uuid.UUID,
     db: AsyncSession,
+    all_courses: list[Course] | None = None,
 ) -> Course | None:
+    """Find or create a course, with fuzzy-name fallback to avoid duplicates.
+
+    Lookup order:
+    1. Exact code match (fastest path).
+    2. Fuzzy match on name against existing courses (≥85 score) — handles
+       slight OCR/LLM variations like "חשבון אינפינטסימלי" vs "חשבון אינפיניטסימלי".
+    3. Create new placeholder course.
+    """
     if not course_code:
         return None
+
+    # 1. Exact code match
     result = await db.execute(
         select(Course).where(Course.user_id == user_id, Course.code == course_code)
     )
     course = result.scalar_one_or_none()
-    if not course:
-        course = Course(
-            user_id=user_id,
-            code=course_code,
-            name=f"קורס {course_code}",
-        )
-        db.add(course)
-        await db.flush()
+    if course:
+        return course
+
+    # 2. Fuzzy name match against already-loaded courses
+    if all_courses:
+        candidate_name = f"קורס {course_code}"
+        best_score = 0
+        best_course = None
+        for c in all_courses:
+            score = fuzz.token_sort_ratio(candidate_name, c.name)
+            if score > best_score:
+                best_score = score
+                best_course = c
+        if best_score >= _COURSE_FUZZY_THRESHOLD and best_course is not None:
+            logger.info(
+                "Course fuzzy match — code=%s matched=%s score=%d",
+                course_code, best_course.name, best_score,
+            )
+            return best_course
+
+    # 3. Create placeholder
+    course = Course(
+        user_id=user_id,
+        code=course_code,
+        name=f"קורס {course_code}",
+    )
+    db.add(course)
+    await db.flush()
     return course
+
+
+def _is_duplicate_deadline(
+    title: str,
+    due_date: datetime,
+    dl_type: DeadlineType,
+    existing: list[Deadline],
+) -> bool:
+    """Return True if a sufficiently similar deadline already exists."""
+    window = timedelta(days=_DEADLINE_WINDOW_DAYS)
+    for dl in existing:
+        if dl.type != dl_type:
+            continue
+        if abs(dl.due_date - due_date) > window:
+            continue
+        if fuzz.token_sort_ratio(title, dl.title) >= _DEADLINE_FUZZY_THRESHOLD:
+            logger.info(
+                "Deadline dedup — skipping '%s' (%s) — matches existing '%s'",
+                title, due_date.date(), dl.title,
+            )
+            return True
+    return False
+
+
+def _is_duplicate_grade(
+    title: str | None,
+    grade_val: float,
+    course_id: uuid.UUID,
+    existing: list[Grade],
+) -> bool:
+    """Return True if the same grade already exists for this course."""
+    for g in existing:
+        if g.course_id != course_id:
+            continue
+        if g.grade != grade_val:
+            continue
+        if title and g.assignment_title:
+            if fuzz.token_sort_ratio(title, g.assignment_title) >= _GRADE_FUZZY_THRESHOLD:
+                logger.info(
+                    "Grade dedup — skipping '%s' %.1f — matches existing '%s'",
+                    title, grade_val, g.assignment_title,
+                )
+                return True
+        elif not title and not g.assignment_title:
+            # Both untitled, same value → duplicate
+            return True
+    return False
 
 
 async def store_parse_results(
@@ -279,46 +364,76 @@ async def store_parse_results(
     pdf_attachment_id: uuid.UUID,
     db: AsyncSession,
 ) -> dict:  # {assignments: int, exams: int, grades: int, lectures: int}
-    """Inserts deadlines, grades, exam sittings from parsed JSON."""
+    """Inserts deadlines, grades, exam sittings from parsed JSON, skipping duplicates."""
     user_courses_result = await db.execute(
         select(Course).where(Course.user_id == user_id)
     )
     user_courses = list(user_courses_result.scalars().all())
 
+    existing_deadlines_result = await db.execute(
+        select(Deadline).where(
+            Deadline.course_id.in_([c.id for c in user_courses])
+        )
+    )
+    existing_deadlines = list(existing_deadlines_result.scalars().all())
+
+    existing_grades_result = await db.execute(
+        select(Grade).where(Grade.user_id == user_id)
+    )
+    existing_grades = list(existing_grades_result.scalars().all())
+
     inserted = {"assignments": 0, "exams": 0, "grades": 0, "lectures": 0}
 
     # Assignments
     for item in parse_result.get("assignments", []):
-        course = await get_or_create_course(item.get("course_code"), user_id, db)
+        course = await get_or_create_course(item.get("course_code"), user_id, db, user_courses)
         if not course:
             continue
         try:
             due_date = datetime.fromisoformat(item["due_date"]).replace(tzinfo=timezone.utc)
         except (KeyError, ValueError):
             continue
+        title = item.get("title", "מטלה")
+        if _is_duplicate_deadline(title, due_date, DeadlineType.assignment, existing_deadlines):
+            continue
         review = _needs_review(item, user_courses)
         dl = Deadline(
             course_id=course.id,
             type=DeadlineType.assignment,
-            title=item.get("title", "מטלה"),
+            title=title,
             due_date=due_date,
             needs_review=review,
             source=DeadlineSource.email,
             source_pdf_id=pdf_attachment_id,
         )
         db.add(dl)
+        existing_deadlines.append(dl)
         inserted["assignments"] += 1
 
     # Exams
     for item in parse_result.get("exams", []):
-        course = await get_or_create_course(item.get("course_code"), user_id, db)
+        course = await get_or_create_course(item.get("course_code"), user_id, db, user_courses)
         if not course:
             continue
+        title = item.get("title", "בחינה")
+        # Use earliest moed date for dedup check
+        earliest: datetime | None = None
+        for moed in item.get("moeds", []):
+            try:
+                d = datetime.fromisoformat(moed["date"]).replace(tzinfo=timezone.utc)
+                if earliest is None or d < earliest:
+                    earliest = d
+            except (KeyError, ValueError):
+                continue
+        check_date = earliest or datetime.now(timezone.utc)
+        if _is_duplicate_deadline(title, check_date, DeadlineType.exam, existing_deadlines):
+            continue
+
         exam_dl = Deadline(
             course_id=course.id,
             type=DeadlineType.exam,
-            title=item.get("title", "בחינה"),
-            due_date=datetime.now(timezone.utc),  # placeholder, updated by moeds
+            title=title,
+            due_date=check_date,
             needs_review=True,
             source=DeadlineSource.email,
             source_pdf_id=pdf_attachment_id,
@@ -339,40 +454,48 @@ async def store_parse_results(
                 status=ExamSittingStatus.optional,
             )
             db.add(sitting)
-            if exam_dl.due_date.year == datetime.now(timezone.utc).year and moed_date < exam_dl.due_date:
+            if moed_date < exam_dl.due_date:
                 exam_dl.due_date = moed_date
 
+        existing_deadlines.append(exam_dl)
         inserted["exams"] += 1
 
     # Lectures
     for item in parse_result.get("lectures", []):
-        course = await get_or_create_course(item.get("course_code"), user_id, db)
+        course = await get_or_create_course(item.get("course_code"), user_id, db, user_courses)
         if not course:
             continue
         try:
             lecture_date = datetime.fromisoformat(item["date"]).replace(tzinfo=timezone.utc)
         except (KeyError, ValueError):
             continue
+        title = "הרצאה"
+        if _is_duplicate_deadline(title, lecture_date, DeadlineType.lecture, existing_deadlines):
+            continue
         dl = Deadline(
             course_id=course.id,
             type=DeadlineType.lecture,
-            title="הרצאה",
+            title=title,
             due_date=lecture_date,
             source=DeadlineSource.email,
             source_pdf_id=pdf_attachment_id,
         )
         db.add(dl)
+        existing_deadlines.append(dl)
         inserted["lectures"] += 1
 
     # Grades
     for item in parse_result.get("grades", []):
-        course = await get_or_create_course(item.get("course_code"), user_id, db)
+        course = await get_or_create_course(item.get("course_code"), user_id, db, user_courses)
         if not course:
             continue
         try:
             grade_val = float(item["grade"])
             max_grade = float(item.get("max_grade", 100))
         except (KeyError, ValueError):
+            continue
+        assignment_title = item.get("assignment_title")
+        if _is_duplicate_grade(assignment_title, grade_val, course.id, existing_grades):
             continue
         grade = Grade(
             user_id=user_id,
@@ -382,10 +505,11 @@ async def store_parse_results(
             grade_type=GradeType.assignment,
             source=GradeSource.email,
             source_pdf_id=pdf_attachment_id,
-            assignment_title=item.get("assignment_title"),
+            assignment_title=assignment_title,
             received_at=datetime.now(timezone.utc),
         )
         db.add(grade)
+        existing_grades.append(grade)
         inserted["grades"] += 1
 
     await db.flush()
