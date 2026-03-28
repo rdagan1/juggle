@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthScreen } from "./components/AuthScreen";
 import { AppHeader } from "./components/AppHeader";
 import { TabNavigator, type TabId } from "./components/TabNavigator";
@@ -9,7 +9,7 @@ import { CoursesTab } from "./tabs/CoursesTab";
 import { EmailsTab } from "./tabs/EmailsTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { useAuth } from "./hooks/useAuth";
-import { settingsApi, type GioAttachment } from "./api/client";
+import { settingsApi, uploadApi, type GioAttachment } from "./api/client";
 import { he } from "./i18n/he";
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
@@ -23,6 +23,7 @@ function App() {
   const [filterCourseId, setFilterCourseId] = useState<string | undefined>();
   const [filterCourseName, setFilterCourseName] = useState<string | undefined>();
   const [pendingAttachments, setPendingAttachments] = useState<GioAttachment[]>([]);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (DEMO_MODE && !isAuthenticated) {
@@ -81,9 +82,48 @@ function App() {
     });
   };
 
-  const removeAttachment = (id: string) => {
-    setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
-  };
+  // Poll parse status for any pending PDF attachments every 2s
+  useEffect(() => {
+    const pendingPdfs = pendingAttachments.filter(
+      (a) => a.type === "pdf" && a.parseStatus === "pending"
+    );
+
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+
+    if (pendingPdfs.length === 0) return;
+
+    pollingRef.current = setInterval(async () => {
+      for (const att of pendingPdfs) {
+        try {
+          const { data } = await uploadApi.getStatus(att.id);
+          if (data.parse_status !== "pending") {
+            setPendingAttachments((prev) =>
+              prev.map((a) => (a.id === att.id ? { ...a, parseStatus: data.parse_status } : a))
+            );
+          }
+        } catch {
+          // ignore transient errors
+        }
+      }
+    }, 2000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [pendingAttachments]);
+
+  const removeAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => {
+      const att = prev.find((a) => a.id === id);
+      if (att?.type === "pdf" && att.parseStatus === "pending") {
+        uploadApi.cancel(id).catch(() => {});
+      }
+      return prev.filter((a) => a.id !== id);
+    });
+  }, []);
 
   // Resolve filter course name from CoursesTab callback
   const navigateWithCourse = (tab: TabId, courseId?: string) => {

@@ -45,8 +45,8 @@ def run_async(coro):
         loop.close()
 
 
-@celery_app.task(name="app.workers.celery_app.process_pdf_task", bind=True, max_retries=3)
-def process_pdf_task(self, pdf_attachment_id: str, user_id: str, email_id: str, filename: str, pdf_bytes: str):
+@celery_app.task(name="app.workers.celery_app.process_pdf_task", bind=True, max_retries=3, time_limit=180, soft_time_limit=150)
+def process_pdf_task(self, pdf_attachment_id: str, user_id: str, email_id: str, filename: str, storage_key: str):
     """Process a PDF attachment through the full pipeline."""
     import uuid
 
@@ -55,10 +55,11 @@ def process_pdf_task(self, pdf_attachment_id: str, user_id: str, email_id: str, 
         from app.services.pdf_pipeline import run_pipeline
         from app.services.personalization import create_gio_message
         from app.api.chat import push_gio_message
+        from app.services.storage import download, delete
 
-        pdf_bytes_raw = bytes.fromhex(pdf_bytes)
         async with AsyncSessionLocal() as db:
             try:
+                pdf_bytes_raw = download(storage_key)
                 result = await run_pipeline(
                     pdf_bytes=pdf_bytes_raw,
                     user_id=uuid.UUID(user_id),
@@ -94,6 +95,8 @@ def process_pdf_task(self, pdf_attachment_id: str, user_id: str, email_id: str, 
                         await push_gio_message(user_id, msg)
 
                 await db.commit()
+                # Clean up stored file after successful processing
+                delete(storage_key)
             except Exception as exc:
                 await db.rollback()
                 raise self.retry(exc=exc, countdown=60)
@@ -101,23 +104,25 @@ def process_pdf_task(self, pdf_attachment_id: str, user_id: str, email_id: str, 
     run_async(_run())
 
 
-@celery_app.task(name="app.workers.celery_app.process_uploaded_pdf_task", bind=True, max_retries=3)
-def process_uploaded_pdf_task(self, document_id: str, user_id: str, filename: str, pdf_bytes: str):
+@celery_app.task(name="app.workers.celery_app.process_uploaded_pdf_task", bind=True, max_retries=3, time_limit=180, soft_time_limit=150)
+def process_uploaded_pdf_task(self, document_id: str, user_id: str, filename: str, storage_key: str):
     """Process a manually uploaded PDF."""
     import uuid
 
     async def _run():
         from app.database import AsyncSessionLocal
         from app.models.pdf_attachment import PdfAttachment, PdfParseStatus
-        from app.models.uploaded_document import UploadedDocument
+        from app.models.uploaded_document import UploadedDocument, UploadedDocumentParseStatus
         from app.services.pdf_pipeline import run_pipeline
         from app.services.personalization import create_gio_message
         from app.api.chat import push_gio_message
+        from app.services.storage import download, delete
         from sqlalchemy import select
 
-        pdf_bytes_raw = bytes.fromhex(pdf_bytes)
         async with AsyncSessionLocal() as db:
             try:
+                pdf_bytes_raw = download(storage_key)
+
                 # Create a synthetic PdfAttachment for the pipeline
                 att = PdfAttachment(
                     user_id=uuid.UUID(user_id),
@@ -140,13 +145,14 @@ def process_uploaded_pdf_task(self, document_id: str, user_id: str, filename: st
                 )
                 doc = doc_result.scalar_one_or_none()
                 if doc:
-                    from app.models.uploaded_document import UploadedDocumentParseStatus
                     status_map = {
                         "parsed": UploadedDocumentParseStatus.parsed,
                         "unreadable": UploadedDocumentParseStatus.unreadable,
                         "no_events": UploadedDocumentParseStatus.no_events,
                     }
                     doc.parse_status = status_map.get(result.get("status"), UploadedDocumentParseStatus.failed)
+                    if result.get("pdf_hash"):
+                        doc.pdf_hash = result["pdf_hash"]
 
                 status = result.get("status")
                 if status == "parsed":
@@ -171,8 +177,17 @@ def process_uploaded_pdf_task(self, document_id: str, user_id: str, filename: st
                     await push_gio_message(user_id, msg)
 
                 await db.commit()
+                # Do NOT delete the storage file — users may want to open it via the download endpoint.
             except Exception as exc:
-                await db.rollback()
+                # Mark the document as failed so it doesn't stay stuck in pending
+                try:
+                    async with AsyncSessionLocal() as err_db:
+                        err_doc = await err_db.get(UploadedDocument, uuid.UUID(document_id))
+                        if err_doc and err_doc.parse_status == UploadedDocumentParseStatus.pending:
+                            err_doc.parse_status = UploadedDocumentParseStatus.failed
+                            await err_db.commit()
+                except Exception:
+                    pass
                 raise self.retry(exc=exc, countdown=60)
 
     run_async(_run())

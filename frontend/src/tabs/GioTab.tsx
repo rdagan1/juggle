@@ -6,6 +6,41 @@ import { he } from "../i18n/he";
 import { type TabId } from "../components/TabNavigator";
 import { type GioAttachment, type AttachmentRef } from "../api/client";
 
+function pdfDownloadUrl(documentId: string): string {
+  const token = localStorage.getItem("access_token") ?? "";
+  return `/api/upload/${documentId}?token=${encodeURIComponent(token)}`;
+}
+
+function PdfStatusIcon({ status }: { status?: string }) {
+  if (!status || status === "pending") {
+    return (
+      <svg
+        className="shrink-0 animate-spin text-gio-400"
+        width="10" height="10" viewBox="0 0 20 20" fill="none"
+        aria-label="מעבד..."
+      >
+        <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="2.5"
+          strokeDasharray="22 22" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (status === "parsed" || status === "no_events") {
+    return (
+      <svg className="shrink-0 text-green-500" width="10" height="10" viewBox="0 0 20 20"
+        fill="none" aria-label="עובד">
+        <path d="M4 10l5 5 7-8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  // failed / unreadable
+  return (
+    <svg className="shrink-0 text-red-400" width="10" height="10" viewBox="0 0 20 20"
+      fill="none" aria-label="שגיאה">
+      <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 interface GioTabProps {
   userId: string;
   onNavigate: (tab: TabId) => void;
@@ -83,9 +118,23 @@ export function GioTab({ userId, onNavigate, attachments = [], onAddAttachment, 
                 key={a.id}
                 className="flex items-center gap-1 bg-gio-50 border border-gio-100 rounded-lg px-2 py-1 text-xs text-gio-700 max-w-[200px]"
               >
-                <span className="truncate">{a.title}</span>
+                {a.type === "pdf" ? (
+                  <a
+                    href={pdfDownloadUrl(a.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate hover:underline"
+                  >
+                    {a.title}
+                  </a>
+                ) : (
+                  <span className="truncate">{a.title}</span>
+                )}
                 {a.subtitle && (
                   <span className="text-gio-400 shrink-0 truncate max-w-[80px]">· {a.subtitle}</span>
+                )}
+                {a.type === "pdf" && (
+                  <PdfStatusIcon status={a.parseStatus} />
                 )}
                 <button
                   type="button"

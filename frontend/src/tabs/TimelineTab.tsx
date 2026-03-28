@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { timelineApi, type DeadlineItem, type GioAttachment } from "../api/client";
 import { he, SOURCE_LABELS } from "../i18n/he";
 import { type TabId } from "../components/TabNavigator";
+import { CalendarView } from "../components/CalendarView";
+import { ThreeDotMenu } from "../components/ThreeDotMenu";
 
 interface TimelineTabProps {
   onNavigate: (tab: TabId) => void;
@@ -9,6 +11,8 @@ interface TimelineTabProps {
   onFilterCourseName?: (name: string) => void;
   onAskGio?: (attachment: GioAttachment) => void;
 }
+
+type ViewMode = "list" | "calendar";
 
 function deadlineToAttachment(item: DeadlineItem): GioAttachment {
   return {
@@ -19,7 +23,34 @@ function deadlineToAttachment(item: DeadlineItem): GioAttachment {
   };
 }
 
-function DeadlineCard({ item, onGioAction }: { item: DeadlineItem; onGioAction: () => void }) {
+function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <div className="flex gap-1 bg-navy-100 rounded-full p-0.5" role="group" aria-label="בחירת תצוגה" dir="rtl">
+      {(["list", "calendar"] as ViewMode[]).map((mode) => (
+        <button
+          key={mode}
+          onClick={() => onChange(mode)}
+          className={`flex-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            view === mode ? "bg-gio-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+          aria-pressed={view === mode}
+        >
+          {mode === "calendar" ? he.timeline.viewCalendar : he.timeline.viewList}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DeadlineCard({
+  item,
+  onGioAction,
+  onDelete,
+}: {
+  item: DeadlineItem;
+  onGioAction: () => void;
+  onDelete: (id: string) => void;
+}) {
   const due = new Date(item.due_date);
   const dueFmt = due.toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit" });
   const timeFmt = due.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
@@ -56,6 +87,15 @@ function DeadlineCard({ item, onGioAction }: { item: DeadlineItem; onGioAction: 
               מועד {item.moed}
             </span>
           )}
+          <ThreeDotMenu
+            items={[
+              {
+                label: he.menu.delete,
+                onClick: () => onDelete(item.id),
+                danger: true,
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -100,6 +140,7 @@ export function TimelineTab({ onNavigate, filterCourseId, onFilterCourseName, on
   const [items, setItems] = useState<DeadlineItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>("list");
 
   useEffect(() => {
     setIsLoading(true);
@@ -115,6 +156,13 @@ export function TimelineTab({ onNavigate, filterCourseId, onFilterCourseName, on
       .finally(() => setIsLoading(false));
   }, [filterCourseId]);
 
+  const handleDelete = (id: string) => {
+    timelineApi
+      .delete(id)
+      .then(() => setItems((prev) => prev.filter((i) => i.id !== id)))
+      .catch(() => setError(he.errors.generic));
+  };
+
   const urgent = items.filter((i) => i.is_urgent);
   const rest = items.filter((i) => !i.is_urgent);
 
@@ -126,8 +174,9 @@ export function TimelineTab({ onNavigate, filterCourseId, onFilterCourseName, on
       className="flex flex-col h-full bg-navy-50 overflow-y-auto"
       dir="rtl"
     >
-      <header className="px-4 pt-5 pb-3">
+      <header className="px-4 pt-5 pb-3 flex flex-col gap-3">
         <h1 className="text-xl font-bold text-gray-800">{he.timeline.title}</h1>
+        <ViewToggle view={view} onChange={setView} />
       </header>
 
       {isLoading && (
@@ -138,44 +187,54 @@ export function TimelineTab({ onNavigate, filterCourseId, onFilterCourseName, on
         <div className="mx-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm">{error}</div>
       )}
 
-      {!isLoading && !error && items.length === 0 && (
-        <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
-          {he.timeline.noDeadlines}
-        </div>
+      {!isLoading && !error && view === "calendar" && (
+        <CalendarView items={items} />
       )}
 
-      {urgent.length > 0 && (
-        <section className="px-4 mb-4" aria-label={he.timeline.urgentStrip}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 rounded-full bg-urgent animate-pulse" aria-hidden="true" />
-            <h2 className="text-xs font-semibold text-urgent uppercase tracking-wide">
-              {he.timeline.urgentStrip}
-            </h2>
-          </div>
-          <div className="flex flex-col gap-2">
-            {urgent.map((item) => (
-              <DeadlineCard
-                key={item.id}
-                item={item}
-                onGioAction={() => { onAskGio?.(deadlineToAttachment(item)); onNavigate("gio"); }}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      {!isLoading && !error && view === "list" && (
+        <>
+          {items.length === 0 && (
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+              {he.timeline.noDeadlines}
+            </div>
+          )}
 
-      {rest.length > 0 && (
-        <section className="px-4 pb-6" aria-label="מטלות קרובות">
-          <div className="flex flex-col gap-2">
-            {rest.map((item) => (
-              <DeadlineCard
-                key={item.id}
-                item={item}
-                onGioAction={() => { onAskGio?.(deadlineToAttachment(item)); onNavigate("gio"); }}
-              />
-            ))}
-          </div>
-        </section>
+          {urgent.length > 0 && (
+            <section className="px-4 mb-4" aria-label={he.timeline.urgentStrip}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2 h-2 rounded-full bg-urgent animate-pulse" aria-hidden="true" />
+                <h2 className="text-xs font-semibold text-urgent uppercase tracking-wide">
+                  {he.timeline.urgentStrip}
+                </h2>
+              </div>
+              <div className="flex flex-col gap-2">
+                {urgent.map((item) => (
+                  <DeadlineCard
+                    key={item.id}
+                    item={item}
+                    onGioAction={() => { onAskGio?.(deadlineToAttachment(item)); onNavigate("gio"); }}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {rest.length > 0 && (
+            <section className="px-4 pb-6" aria-label="מטלות קרובות">
+              <div className="flex flex-col gap-2">
+                {rest.map((item) => (
+                  <DeadlineCard
+                    key={item.id}
+                    item={item}
+                    onGioAction={() => { onAskGio?.(deadlineToAttachment(item)); onNavigate("gio"); }}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

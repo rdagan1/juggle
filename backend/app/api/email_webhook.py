@@ -96,16 +96,20 @@ async def inbound_email(
         db.add(pdf_attachment)
         await db.flush()
 
-        # Queue Celery task with raw bytes
+        # Store PDF bytes in R2/S3 or local folder — avoids passing them through Redis.
         from app.workers.celery_app import process_pdf_task
+        from app.services import storage
         if hasattr(attachment, "read"):
             pdf_bytes = await attachment.read()
+            storage_key = f"emails/{user.id}/{pdf_attachment.id}.pdf"
+            await storage.upload_async(storage_key, pdf_bytes)
+            pdf_attachment.storage_url = storage_key
             process_pdf_task.delay(
                 pdf_attachment_id=str(pdf_attachment.id),
                 user_id=str(user.id),
                 email_id=str(parsed_email.id),
                 filename=str(filename),
-                pdf_bytes=pdf_bytes.hex(),  # hex-encode for Celery serialization
+                storage_key=storage_key,
             )
 
     return {"status": "ok", "email_id": str(parsed_email.id)}

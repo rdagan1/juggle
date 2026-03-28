@@ -62,6 +62,8 @@ export interface GioAttachment {
   type: "deadline" | "grade" | "course" | "pdf";
   title: string;
   subtitle?: string;
+  /** Only set for type="pdf". Reflects backend UploadedDocument.parse_status. */
+  parseStatus?: "pending" | "parsed" | "no_events" | "failed" | "unreadable";
 }
 
 /** Minimal reference sent to the backend — backend queries DB for full context. */
@@ -85,7 +87,9 @@ export interface GioMessage {
   navigate_hint?: string | null;
   template_id?: string | null;
   timestamp: string;
-  /** Frontend-only: attachments sent with this message (not persisted). */
+  /** Persisted attachment display info returned by the backend. */
+  attachment_display?: GioAttachment[] | null;
+  /** Resolved at load/send time from attachment_display. */
   _attachments?: GioAttachment[];
 }
 
@@ -99,6 +103,7 @@ export const chatApi = {
     text?: string,
     buttonLabel?: string,
     attachments?: AttachmentRef[],
+    attachmentDisplay?: GioAttachment[],
   ) =>
     apiClient.post<GioMessage>("/api/chat/respond", {
       message_id: messageId,
@@ -106,6 +111,7 @@ export const chatApi = {
       button_label: buttonLabel,
       text,
       attachments: attachments ?? [],
+      attachment_display: attachmentDisplay ?? [],
     }),
 };
 
@@ -119,6 +125,10 @@ export const uploadApi = {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
+  getStatus: (documentId: string) =>
+    apiClient.get<{ parse_status: GioAttachment["parseStatus"] }>(`/api/upload/${documentId}/status`),
+  cancel: (documentId: string) =>
+    apiClient.delete(`/api/upload/${documentId}`),
 };
 
 // ─── Timeline ────────────────────────────────────────────────────────────────
@@ -143,6 +153,7 @@ export const timelineApi = {
     apiClient.get<{ items: DeadlineItem[]; total: number }>("/api/timeline", {
       params: { window, ...(courseId ? { course_id: courseId } : {}) },
     }),
+  delete: (deadlineId: string) => apiClient.delete(`/api/timeline/${deadlineId}`),
 };
 
 // ─── Courses ─────────────────────────────────────────────────────────────────
@@ -160,6 +171,7 @@ export interface CourseItem {
 
 export const coursesApi = {
   get: () => apiClient.get<{ courses: CourseItem[] }>("/api/courses"),
+  delete: (courseId: string) => apiClient.delete(`/api/courses/${courseId}`),
 };
 
 // ─── Grades ──────────────────────────────────────────────────────────────────
@@ -188,6 +200,7 @@ export const gradesApi = {
     apiClient.get<{ courses: CourseGrades[] }>("/api/grades", {
       params: courseId ? { course_id: courseId } : {},
     }),
+  delete: (gradeId: string) => apiClient.delete(`/api/grades/${gradeId}`),
 };
 
 // ─── Emails ──────────────────────────────────────────────────────────────────
@@ -205,6 +218,7 @@ export interface EmailItem {
 export const emailsApi = {
   get: (page = 1) =>
     apiClient.get<{ emails: EmailItem[] }>("/api/emails", { params: { page } }),
+  delete: (emailId: string) => apiClient.delete(`/api/emails/${emailId}`),
 };
 
 // ─── Settings ────────────────────────────────────────────────────────────────

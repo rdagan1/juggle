@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { type GioMessage } from "../api/client";
 
+function pdfDownloadUrl(documentId: string): string {
+  const token = localStorage.getItem("access_token") ?? "";
+  return `/api/upload/${documentId}?token=${encodeURIComponent(token)}`;
+}
+
 interface UserMessageProps {
   message: GioMessage;
 }
@@ -58,7 +63,18 @@ export function UserMessage({ message }: UserMessageProps) {
             >
               <span aria-hidden="true">{TYPE_ICONS[a.type] ?? "📎"}</span>
               <div className="flex flex-col min-w-0">
-                <span className="font-medium truncate">{a.title}</span>
+                {a.type === "pdf" ? (
+                  <a
+                    href={pdfDownloadUrl(a.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium truncate hover:underline text-gio-600"
+                  >
+                    {a.title}
+                  </a>
+                ) : (
+                  <span className="font-medium truncate">{a.title}</span>
+                )}
                 {a.subtitle && (
                   <span className="text-slate-400 truncate">{a.subtitle}</span>
                 )}

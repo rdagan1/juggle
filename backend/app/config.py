@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     r2_access_key: str = ""
     r2_secret_key: str = ""
     r2_endpoint: str = ""
+    local_storage_path: str = "./uploads"
 
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"

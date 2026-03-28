@@ -23,6 +23,7 @@ export function FileDropzone({ onAttachment }: FileDropzoneProps) {
           id: data.document_id,
           type: "pdf",
           title: pdf.name.replace(/\.pdf$/i, ""),
+          parseStatus: "pending",
         });
       } catch {
         // Silent fail — Gio will show an error message via WS
@@ -99,6 +100,7 @@ export function UploadButton({ onAttachment }: FileDropzoneProps) {
           id: data.document_id,
           type: "pdf",
           title: pdf.name.replace(/\.pdf$/i, ""),
+          parseStatus: "pending",
         });
       } finally {
         setIsUploading(false);
