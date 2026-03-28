@@ -40,6 +40,7 @@ class GioMessageOut(BaseModel):
     navigate_hint: Optional[str] = None
     template_id: Optional[str] = None
     timestamp: datetime
+    attachment_display: Optional[list[dict]] = None
 
     class Config:
         from_attributes = True
@@ -56,6 +57,7 @@ class ChatRespondRequest(BaseModel):
     button_label: Optional[str] = None
     text: Optional[str] = None
     attachments: list[AttachmentRef] = []
+    attachment_display: list[dict] = []
 
 
 class DeadlineOut(BaseModel):
@@ -112,3 +114,4 @@ class UserPreferencesIn(BaseModel):
     min_study_session_minutes: Optional[int] = None
     preferred_study_windows: Optional[list[str]] = None
     effort_contribution_opt_out: Optional[bool] = None
+    gcal_auto_sync: Optional[bool] = None

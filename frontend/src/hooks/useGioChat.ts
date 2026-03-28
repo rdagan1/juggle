@@ -25,10 +25,13 @@ export function useGioChat(userId: string | null) {
       // Dismiss buttons on any assistant message that already has something after it —
       // those interactions are in the past and should not be re-activated on reload.
       const processed = data.map((msg, idx) => {
-        if (msg.role === "assistant" && msg.buttons && idx < data.length - 1) {
-          return { ...msg, buttons: null };
+        const withAttachments = msg.attachment_display?.length
+          ? { ...msg, _attachments: msg.attachment_display }
+          : msg;
+        if (withAttachments.role === "assistant" && withAttachments.buttons && idx < data.length - 1) {
+          return { ...withAttachments, buttons: null };
         }
-        return msg;
+        return withAttachments;
       });
       if (pageNum === 1) {
         setMessages(processed);
@@ -131,7 +134,7 @@ export function useGioChat(userId: string | null) {
         setMessages((prev) => [...prev, userMsg]);
       }
       try {
-        const { data } = await chatApi.respond(messageId, buttonValue, text, buttonLabel, attachmentRefs);
+        const { data } = await chatApi.respond(messageId, buttonValue, text, buttonLabel, attachmentRefs, attachmentDisplay);
         // WS will deliver the response; add it if WS is down
         setMessages((prev) => {
           if (prev.some((m) => m.id === data.id)) return prev;

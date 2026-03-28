@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { emailsApi, type EmailItem } from "../api/client";
 import { he } from "../i18n/he";
+import { ThreeDotMenu } from "../components/ThreeDotMenu";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -10,7 +11,7 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "bg-red-100 text-red-700",
 };
 
-function EmailRow({ email }: { email: EmailItem }) {
+function EmailRow({ email, onDelete }: { email: EmailItem; onDelete: (id: string) => void }) {
   const receivedFmt = new Date(email.received_at).toLocaleDateString("he-IL", {
     day: "numeric",
     month: "short",
@@ -38,9 +39,20 @@ function EmailRow({ email }: { email: EmailItem }) {
           </p>
           <p className="text-[10px] text-slate-400 truncate">{email.sender ?? ""}</p>
         </div>
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${badgeColor}`}>
-          {statusLabel}
-        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${badgeColor}`}>
+            {statusLabel}
+          </span>
+          <ThreeDotMenu
+            items={[
+              {
+                label: he.menu.delete,
+                onClick: () => onDelete(email.id),
+                danger: true,
+              },
+            ]}
+          />
+        </div>
       </div>
 
       <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
@@ -96,6 +108,13 @@ export function EmailsTab() {
     load(next);
   };
 
+  const handleDelete = (id: string) => {
+    emailsApi
+      .delete(id)
+      .then(() => setEmails((prev) => prev.filter((e) => e.id !== id)))
+      .catch(() => setError(he.errors.generic));
+  };
+
   return (
     <div
       id="panel-emails"
@@ -124,7 +143,7 @@ export function EmailsTab() {
 
       <div className="flex flex-col gap-2 px-4 pb-4">
         {emails.map((e) => (
-          <EmailRow key={e.id} email={e} />
+          <EmailRow key={e.id} email={e} onDelete={handleDelete} />
         ))}
       </div>
 

@@ -112,3 +112,25 @@ async def get_timeline(
         })
 
     return {"items": items, "total": len(items)}
+
+
+@router.delete("/{deadline_id}", status_code=204)
+async def delete_deadline(
+    deadline_id: str,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await _get_current_user(token, db)
+    courses_result = await db.execute(
+        select(Course).where(Course.user_id == user.id)
+    )
+    user_course_ids = {c.id for c in courses_result.scalars().all()}
+
+    result = await db.execute(
+        select(Deadline).where(Deadline.id == uuid.UUID(deadline_id))
+    )
+    deadline = result.scalar_one_or_none()
+    if not deadline or deadline.course_id not in user_course_ids:
+        raise HTTPException(status_code=404, detail="Deadline not found")
+    await db.delete(deadline)
+    await db.commit()

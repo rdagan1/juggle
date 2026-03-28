@@ -66,6 +66,10 @@ export const he = {
       missed: "הוחמץ",
     },
     needsReview: "טעון בדיקה",
+    viewCalendar: "לוח שנה",
+    viewList: "רשימה",
+    calendarNoEvents: "אין אירועים ביום זה",
+    calendarDayNames: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
   },
   grades: {
     title: "ציונים",
@@ -101,8 +105,12 @@ export const he = {
       connect: "חבר/י יומן",
       connected: "מחובר",
       connectWork: "חבר/י יומן עבודה",
+      gcalAutoSync: "סנכרן אוטומטית עם Google Calendar",
+      gcalAutoSyncHint: "כשמופעל, Gio יוסיף אירועים ליומן ללא שאלה",
     },
     quietHours: "שעות שקט",
+    quietStart: "התחלה",
+    quietEnd: "סיום",
     shabbat: "חסימת שבת",
     gradeThreshold: "סף התרעת ציון",
     minStudySession: "משך מינימלי לבלוק לימוד (דקות)",
@@ -112,6 +120,16 @@ export const he = {
     deleteConfirm: "האם אתה/את בטוח/ה? פעולה זו אינה הפיכה.",
     saveButton: "שמור/י",
     saved: "נשמר!",
+    logout: "יציאה",
+    personalCalendar: "יומן אישי",
+    workCalendar: "יומן עבודה",
+    sections: {
+      account: "חשבון",
+      notifications: "התראות",
+      calendar: "לוח שנה",
+      studyProfile: "פרופיל לימודי",
+      manualUpdates: "שינויים ידניים",
+    },
   },
   fileDropzone: {
     dragActive: "שחרר/י את הקובץ כאן",
@@ -121,6 +139,9 @@ export const he = {
     generic: "אירעה שגיאה. נסה/י שוב.",
     unauthorized: "יש להתחבר מחדש.",
     networkError: "בעיית חיבור. בדוק/י את החיבור לאינטרנט.",
+  },
+  menu: {
+    delete: "מחק",
   },
 } as const;
 

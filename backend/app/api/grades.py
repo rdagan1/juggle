@@ -85,3 +85,23 @@ async def get_grades(
         result_list.append(data)
 
     return {"courses": result_list}
+
+
+@router.delete("/{grade_id}", status_code=204)
+async def delete_grade(
+    grade_id: str,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await _get_current_user(token, db)
+    result = await db.execute(
+        select(Grade).where(
+            Grade.id == uuid.UUID(grade_id),
+            Grade.user_id == user.id,
+        )
+    )
+    grade = result.scalar_one_or_none()
+    if not grade:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    await db.delete(grade)
+    await db.commit()

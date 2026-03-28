@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { coursesApi, type CourseItem, type GioAttachment } from "../api/client";
 import { he } from "../i18n/he";
 import { type TabId } from "../components/TabNavigator";
+import { ThreeDotMenu } from "../components/ThreeDotMenu";
 
 interface CoursesTabProps {
   onNavigate: (tab: TabId, courseId?: string) => void;
@@ -21,10 +22,12 @@ function CourseCard({
   course,
   onNavigate,
   onAskGio,
+  onDelete,
 }: {
   course: CourseItem;
   onNavigate: (tab: TabId, courseId: string) => void;
   onAskGio?: (attachment: GioAttachment) => void;
+  onDelete: (id: string) => void;
 }) {
   const nextExamDate = course.next_exam
     ? new Date(course.next_exam.due_date).toLocaleDateString("he-IL", {
@@ -51,12 +54,23 @@ function CourseCard({
               <p className="text-[10px] text-slate-400 mt-0.5">{course.code}</p>
             )}
           </div>
-          {course.grade_average != null && (
-            <div className="text-left shrink-0">
-              <p className="text-[10px] text-slate-400">{he.courses.gradeAverage}</p>
-              <p className="font-bold text-gio-600 text-sm">{course.grade_average.toFixed(1)}%</p>
-            </div>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            {course.grade_average != null && (
+              <div className="text-left">
+                <p className="text-[10px] text-slate-400">{he.courses.gradeAverage}</p>
+                <p className="font-bold text-gio-600 text-sm">{course.grade_average.toFixed(1)}%</p>
+              </div>
+            )}
+            <ThreeDotMenu
+              items={[
+                {
+                  label: he.menu.delete,
+                  onClick: () => onDelete(course.id),
+                  danger: true,
+                },
+              ]}
+            />
+          </div>
         </div>
       </div>
 
@@ -126,6 +140,13 @@ export function CoursesTab({ onNavigate, onAskGio }: CoursesTabProps) {
       .finally(() => setIsLoading(false));
   }, []);
 
+  const handleDelete = (id: string) => {
+    coursesApi
+      .delete(id)
+      .then(() => setCourses((prev) => prev.filter((c) => c.id !== id)))
+      .catch(() => setError(he.errors.generic));
+  };
+
   return (
     <div
       id="panel-courses"
@@ -159,6 +180,7 @@ export function CoursesTab({ onNavigate, onAskGio }: CoursesTabProps) {
             course={course}
             onNavigate={onNavigate}
             onAskGio={onAskGio}
+            onDelete={handleDelete}
           />
         ))}
       </div>

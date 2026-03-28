@@ -16,6 +16,8 @@ from app.models.exam_sitting import ExamSitting, ExamSittingStatus
 from app.models.grade import Grade
 from app.models.user import User
 
+
+
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 settings = get_settings()
 
@@ -107,3 +109,23 @@ async def get_courses(
         })
 
     return {"courses": items}
+
+
+@router.delete("/{course_id}", status_code=204)
+async def delete_course(
+    course_id: str,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await _get_current_user(token, db)
+    result = await db.execute(
+        select(Course).where(
+            Course.id == uuid.UUID(course_id),
+            Course.user_id == user.id,
+        )
+    )
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    await db.delete(course)
+    await db.commit()

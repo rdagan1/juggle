@@ -62,6 +62,13 @@ def _parse_buttons(buttons_json: Optional[str]) -> Optional[list[GioButton]]:
 
 
 def _msg_to_out(msg: ConversationHistory) -> GioMessageOut:
+    attachment_display: list[dict] | None = None
+    if msg.message_metadata:
+        try:
+            meta = json.loads(msg.message_metadata)
+            attachment_display = meta.get("attachment_display") or None
+        except Exception:
+            pass
     return GioMessageOut(
         id=msg.id,
         role=msg.role.value,
@@ -70,6 +77,7 @@ def _msg_to_out(msg: ConversationHistory) -> GioMessageOut:
         navigate_hint=msg.navigate_hint,
         template_id=msg.template_id,
         timestamp=msg.timestamp,
+        attachment_display=attachment_display,
     )
 
 
@@ -120,11 +128,15 @@ async def respond(
     # Store student message — use human-readable label for button presses
     input_method = InputMethod.button if body.button_value else InputMethod.typed
     content = body.button_label or body.text or body.button_value or ""
+    meta: dict = {}
+    if body.attachment_display:
+        meta["attachment_display"] = body.attachment_display
     student_msg = ConversationHistory(
         user_id=user.id,
         role=ConversationRole.user,
         content=content,
         input_method=input_method,
+        message_metadata=json.dumps(meta) if meta else None,
     )
     db.add(student_msg)
     await db.flush()

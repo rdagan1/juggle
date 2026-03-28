@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { gradesApi, type CourseGrades, type GioAttachment } from "../api/client";
+import { gradesApi, type CourseGrades, type GradeItem, type GioAttachment } from "../api/client";
 import { he, SOURCE_LABELS } from "../i18n/he";
 import { type TabId } from "../components/TabNavigator";
+import { ThreeDotMenu } from "../components/ThreeDotMenu";
 
 interface GradesTabProps {
   onNavigate: (tab: TabId) => void;
@@ -32,7 +33,15 @@ function TrendArrow({ grades }: { grades: { percentage: number | null }[] }) {
   );
 }
 
-function CourseSection({ course, onGioReport }: { course: CourseGrades; onGioReport: (attachment: GioAttachment) => void }) {
+function CourseSection({
+  course,
+  onGioReport,
+  onDeleteGrade,
+}: {
+  course: CourseGrades;
+  onGioReport: (attachment: GioAttachment) => void;
+  onDeleteGrade: (gradeId: string) => void;
+}) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -60,7 +69,7 @@ function CourseSection({ course, onGioReport }: { course: CourseGrades; onGioRep
 
       {expanded && (
         <div className="border-t border-gray-50 divide-y divide-navy-50">
-          {course.grades.map((g, idx) => (
+          {course.grades.map((g: GradeItem, idx: number) => (
             <div key={g.id} className="px-4 py-3 flex items-center justify-between">
               <div className="flex flex-col gap-0.5">
                 <p className="text-sm text-gray-700">{g.assignment_title ?? "ציון"}</p>
@@ -84,6 +93,15 @@ function CourseSection({ course, onGioReport }: { course: CourseGrades; onGioRep
                     {g.percentage.toFixed(0)}%
                   </span>
                 )}
+                <ThreeDotMenu
+                  items={[
+                    {
+                      label: he.menu.delete,
+                      onClick: () => onDeleteGrade(g.id),
+                      danger: true,
+                    },
+                  ]}
+                />
               </div>
             </div>
           ))}
@@ -121,6 +139,22 @@ export function GradesTab({ onNavigate, filterCourseId, onFilterCourseName, onAs
       .finally(() => setIsLoading(false));
   }, [filterCourseId]);
 
+  const handleDeleteGrade = (gradeId: string) => {
+    gradesApi
+      .delete(gradeId)
+      .then(() => {
+        setCourses((prev) =>
+          prev
+            .map((c) => ({
+              ...c,
+              grades: c.grades.filter((g) => g.id !== gradeId),
+            }))
+            .filter((c) => c.grades.length > 0),
+        );
+      })
+      .catch(() => setError(he.errors.generic));
+  };
+
   return (
     <div
       id="panel-grades"
@@ -153,6 +187,7 @@ export function GradesTab({ onNavigate, filterCourseId, onFilterCourseName, onAs
             key={course.course_id}
             course={course}
             onGioReport={(attachment) => { onAskGio?.(attachment); onNavigate("gio"); }}
+            onDeleteGrade={handleDeleteGrade}
           />
         ))}
       </div>
